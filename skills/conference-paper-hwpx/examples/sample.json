@@ -1,0 +1,22 @@
+{
+  "title_ko": "논문 제목을 여기에 입력합니다",
+  "authors_ko": "홍길동*, 김철수**",
+  "title_en": "Paper Title Goes Here",
+  "authors_en": "Gil-Dong Hong*, and Chul-Soo Kim**",
+  "notes": [
+    "OO대학교, 학부생 (author1@example.com)",
+    "OO대학교, 교수, 교신저자 (author2@example.com)"
+  ],
+  "abstract": "요약은 한 단락으로 연구 목적, 방법, 결과를 간결하게 작성한다. 이 문장은 예시이며 실제 논문 내용으로 교체한다.",
+  "keywords": ["Keyword A", "Keyword B", "Keyword C"],
+  "sections": [
+    {"heading": "서 론", "paragraphs": ["서론 본문 예시 문단이다. 인용은 대괄호 번호를 사용한다[1]."]},
+    {"heading": "본 론", "paragraphs": ["본론 도입 문단이다."],
+     "subsections": [{"heading": "세부 내용", "paragraphs": ["세부 내용 문단이다[2]."]}]},
+    {"heading": "결 론", "paragraphs": ["결론 문단이다."]}
+  ],
+  "references": [
+    "홍길동, 예시 논문 제목, 예시학회 논문지, 제1권, 제1호, 2025, pp. 1-10.",
+    "Example Org., Example Page, https://example.com/docs, 2025."
+  ]
+}
