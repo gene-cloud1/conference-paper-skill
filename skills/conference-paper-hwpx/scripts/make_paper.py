@@ -73,9 +73,11 @@ def fill_front(xml, spec):
     def rep(m):
         t = m.group(1)
         if "{{소속1}}" in t:
-            return "<hp:t>%s</hp:t>" % fh.escape_text("  * " + notes[0])
+            return "<hp:t>%s</hp:t>" % fh.escape_text(
+                "  * " + notes[0] if len(notes) > 0 else "")
         if "{{소속2}}" in t:
-            return "<hp:t>%s</hp:t>" % fh.escape_text(" ** " + notes[1])
+            return "<hp:t>%s</hp:t>" % fh.escape_text(
+                " ** " + notes[1] if len(notes) > 1 else "")
         for key, val in table:
             if t.startswith(key):
                 return "<hp:t>%s</hp:t>" % fh.escape_text(val)
@@ -94,11 +96,6 @@ def build(spec, out_path):
 
     first_h1 = next(i for i, p in enumerate(ps) if ptext(p).startswith("Ⅰ."))
     front = ps[:first_h1]
-    notes = spec.get("notes", [])
-    # 저자 주석이 없으면 해당 단락을 뺀다 (최대 2개)
-    front = [p for p in front
-             if not ("{{소속1}}" in ptext(p) and len(notes) < 1)
-             and not ("{{소속2}}" in ptext(p) and len(notes) < 2)]
     colpr = COLPR_RE.search(ps[first_h1]).group()
 
     def clean(p):
@@ -112,7 +109,7 @@ def build(spec, out_path):
     label_ref = ps[ps.index(ref) - 2]
     link_cid, header = _link_style(header, ref)
 
-    out = [fill_front(p, spec) for p in front]
+    out = [fill_front(p, spec) for p in front]  # 저자 주석 상자는 첫 단락 안에 있다
     out.append(blank)
 
     for n, s in enumerate(spec["sections"]):
@@ -151,8 +148,16 @@ def build(spec, out_path):
     tmp = Path(str(out_path) + ".tmp")
     tmp.write_bytes(buf.getvalue())
     # 쪽번호(하단 가운데) 삽입
-    fh.set_pagenum_hwpx(str(tmp), str(out_path), where="footer", align="CENTER")
-    tmp.unlink()
+    tmp2 = Path(str(out_path) + ".tmp2")
+    fh.set_pagenum_hwpx(str(tmp), str(tmp2), where="footer", align="CENTER")
+    # 머리말: 학회명 (spec["society"], 생략 시 템플릿 기본값 유지)
+    if spec.get("society"):
+        fh.set_header_footer_hwpx(str(tmp2), str(out_path), "header", spec["society"])
+    else:
+        tmp2.replace(out_path)
+    for t in (tmp, tmp2):
+        if t.exists():
+            t.unlink()
 
 
 def _link_style(header, ref_para):
