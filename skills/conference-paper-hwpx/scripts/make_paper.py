@@ -43,32 +43,43 @@ def para(ppr, style, runs):
             'columnBreak="0" merged="0">%s</hp:p>' % (ppr, style, runs))
 
 
-def footnote_run(text, no=1, marker=False):
-    """각주(첫 쪽 하단, 구분선은 양식의 noteLine 설정). 번호는 한글이 자동 부여."""
-    head = ('<hp:run charPrIDRef="0"><hp:ctrl>'
+def footnote_run(text, no=1, marker=None, hid="0"):
+    """각주(첫 쪽 하단, 구분선은 양식의 noteLine 설정). 번호는 한글이 자동 부여.
+
+    marker 가 있으면(예: "*") 자동 번호는 보이지 않는 서식(hid)으로 숨기고,
+    기호를 일반 글자로 직접 써서 어떤 뷰어에서도 똑같이 보이게 한다.
+    """
+    head = ('<hp:run charPrIDRef="%s"><hp:ctrl>'
             '<hp:footNote number="%d" suffixChar="%s" instId="%d">'
-            % (no, "" if marker else ")", 7000 + no))
+            % (hid if marker else "0", no, "" if marker else ")", 7000 + no))
+    if marker:   # 본문 첫머리의 자동 번호도 숨김 서식으로
+        body = para(LEFT, "13", run("", hid) + run(marker + text, "11"))
+    else:
+        body = para(LEFT, "13", run(" " + text, "11"))
+    body = body.replace("</hp:p>", '<hp:linesegarray><hp:lineseg textpos="0" vertpos="%d" '
+                        'vertsize="1000" textheight="1000" baseline="850" spacing="300" '
+                        'horzpos="0" horzsize="%d" flags="393216"/></hp:linesegarray></hp:p>'
+                        % ((no - 1) * 1300, 42520))
     return (head
             + '<hp:subList id="" textDirection="HORIZONTAL" lineWrap="BREAK" '
               'vertAlign="TOP" linkListIDRef="0" linkListNextIDRef="0" '
               'textWidth="0" textHeight="0" hasTextRef="0" hasNumRef="0">'
-            + para(LEFT, "13", run(("" if marker else " ") + text, "11")
-                   + '<hp:linesegarray><hp:lineseg textpos="0" vertpos="%d" vertsize="1000" '
-                     'textheight="1000" baseline="850" spacing="300" horzpos="0" '
-                     'horzsize="%d" flags="393216"/></hp:linesegarray>'
-                   % ((no - 1) * 1300, 42520))
-            + '</hp:subList></hp:footNote></hp:ctrl></hp:run>')
+            + body + '</hp:subList></hp:footNote></hp:ctrl></hp:run>')
 
 
-def authors_runs(names, notes, cid, marker=False):
-    """저자 줄. notes[i] 가 있으면 i번째 저자 뒤에 각주를 단다."""
+def authors_runs(names, notes, cid, marker=None, hid="0"):
+    """저자 줄. notes[i] 가 있으면 i번째 저자 뒤에 각주를 단다 (marker 면 기호를 글자로 직접 씀)."""
     runs, buf = [], ""
     for i, name in enumerate(names):
         buf += (", " if i else "") + name
         if i < len(notes) and notes[i]:
+            if marker:
+                buf += marker
             runs.append(run(buf, cid))
             buf = ""
-            runs.append(footnote_run(notes[i], i + 1, marker))
+            runs.append(footnote_run(notes[i], i + 1, marker, hid))
+            if marker:   # 뷰어에 따라 번호 표시가 뒤따르는 글자 서식을 따르므로 숨김 서식 글자를 덧붙인다
+                runs.append(run(" ", hid))
     if buf:
         runs.append(run(buf, cid))
     return "".join(runs)
@@ -248,6 +259,10 @@ def build(spec, out_path):
     ref = next(p for p in ps[first_h1:] if ptext(p).startswith("{{참고문헌"))
     label_ref = ps[ps.index(ref) - 2]
     link_cid, header = _link_style(header, ref)
+    hid = "0"
+    if spec.get("note_marker"):   # 자동 각주 번호를 가리는 서식(흰색 1pt)
+        hid, header = fh._add_cloned(header, "charProperties", "charPr", "0",
+                                     fh._mutate_charpr(False, False, False, "FFFFFF", 1))
 
     # 앞부분 (저자 줄은 각주 포함해서 다시 만든다)
     out = []
@@ -256,7 +271,7 @@ def build(spec, out_path):
             cid = re.search(r'charPrIDRef="(\d+)"', p).group(1)
             tag = re.match(r"<hp:p [^>]*>", p).group()
             p = tag + authors_runs(names_of(spec["authors_ko"]), spec.get("notes", []), cid,
-                                          bool(spec.get("note_marker"))) + "</hp:p>"
+                                          spec.get("note_marker"), hid) + "</hp:p>"
         out.append(fill_front(p, spec))
     out.append(blank)
 
@@ -305,11 +320,6 @@ def build(spec, out_path):
         out.append(with_runs(ref, _ref_runs(r, cid, link_cid, uid_link)))
 
     new_sec = pre + "".join(out) + post
-    if spec.get("note_marker"):   # 각주 기호를 번호 대신 지정 문자(예: "*")로 (각주가 1개일 때)
-        new_sec = new_sec.replace(
-            'type="DIGIT" userChar="" prefixChar="" suffixChar=")" supscript="1"',
-            'type="USER_CHAR" userChar="%s" prefixChar="" suffixChar="" supscript="0"'
-            % esc(spec["note_marker"]), 1)
 
     def patch(name, d):
         if name == "Contents/section0.xml":

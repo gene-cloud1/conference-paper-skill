@@ -35,6 +35,7 @@ description: "학술대회 논문 양식(.hwpx)으로 논문/보고서를 작성
    | `authors_en` | 영문 저자 줄 (문자열) |
    | `society` | 머리말에 넣을 학회명 (선택) |
    | `notes` | 저자별 각주 배열. `notes[i]` 가 `authors_ko[i]` 뒤에 붙는다 |
+   | `note_marker` | 각주 기호를 번호(`1)`) 대신 지정 문자(예: `"*"`)로 표시 (선택). 자동 번호는 숨기고 기호를 글자로 직접 쓰므로 뷰어에 상관없이 같게 보인다 |
    | `abstract` | 요약 한 단락 |
    | `keywords` | 키워드 배열 |
    | `sections` | `[{heading, paragraphs[], subsections[{heading, paragraphs[]}]}]`. `paragraphs` 항목은 문자열, `{"table": {"caption", "rows", "header"}}`, `{"figure": {"caption", "path", "width_mm"}}` 중 하나 |
