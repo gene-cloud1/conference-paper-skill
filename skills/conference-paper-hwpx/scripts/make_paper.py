@@ -78,6 +78,8 @@ def fill_front(xml, spec):
         if "{{소속2}}" in t:
             return "<hp:t>%s</hp:t>" % fh.escape_text(
                 " ** " + notes[1] if len(notes) > 1 else "")
+        if t == "ㅇㅇㅇ학회 학술대회" and spec.get("society"):
+            return "<hp:t>%s</hp:t>" % fh.escape_text(spec["society"])
         for key, val in table:
             if t.startswith(key):
                 return "<hp:t>%s</hp:t>" % fh.escape_text(val)
@@ -145,19 +147,7 @@ def build(spec, out_path):
                 d = spec["title_ko"].encode("utf8")
             zo.writestr(item.filename, d, compress_type=(
                 zipfile.ZIP_STORED if item.filename == "mimetype" else zipfile.ZIP_DEFLATED))
-    tmp = Path(str(out_path) + ".tmp")
-    tmp.write_bytes(buf.getvalue())
-    # 쪽번호(하단 가운데) 삽입
-    tmp2 = Path(str(out_path) + ".tmp2")
-    fh.set_pagenum_hwpx(str(tmp), str(tmp2), where="footer", align="CENTER")
-    # 머리말: 학회명 (spec["society"], 생략 시 템플릿 기본값 유지)
-    if spec.get("society"):
-        fh.set_header_footer_hwpx(str(tmp2), str(out_path), "header", spec["society"])
-    else:
-        tmp2.replace(out_path)
-    for t in (tmp, tmp2):
-        if t.exists():
-            t.unlink()
+    Path(out_path).write_bytes(buf.getvalue())
 
 
 def _link_style(header, ref_para):
