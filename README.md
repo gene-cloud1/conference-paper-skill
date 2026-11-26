@@ -29,4 +29,10 @@ skills/conference-paper-hwpx/
 ```
 
 ## 예시 결과물
-`examples/` 폴더의 보고서 파일을 참고하세요.
+`skills/conference-paper-hwpx/examples/sample_output.hwpx` — `sample.json` 으로 생성한 예시(한컴오피스에서 열기).
+
+직접 만들어 보려면:
+```bash
+cd skills/conference-paper-hwpx/examples
+python ../scripts/make_paper.py sample.json my_paper.hwpx
+```
