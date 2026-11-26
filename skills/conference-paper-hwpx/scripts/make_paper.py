@@ -43,15 +43,16 @@ def para(ppr, style, runs):
             'columnBreak="0" merged="0">%s</hp:p>' % (ppr, style, runs))
 
 
-def footnote_run(text, no=1):
+def footnote_run(text, no=1, marker=False):
     """각주(첫 쪽 하단, 구분선은 양식의 noteLine 설정). 번호는 한글이 자동 부여."""
     head = ('<hp:run charPrIDRef="0"><hp:ctrl>'
-            '<hp:footNote number="%d" suffixChar=")" instId="%d">' % (no, 7000 + no))
+            '<hp:footNote number="%d" suffixChar="%s" instId="%d">'
+            % (no, "" if marker else ")", 7000 + no))
     return (head
             + '<hp:subList id="" textDirection="HORIZONTAL" lineWrap="BREAK" '
               'vertAlign="TOP" linkListIDRef="0" linkListNextIDRef="0" '
               'textWidth="0" textHeight="0" hasTextRef="0" hasNumRef="0">'
-            + para(LEFT, "13", run(" " + text, "11")
+            + para(LEFT, "13", run(("" if marker else " ") + text, "11")
                    + '<hp:linesegarray><hp:lineseg textpos="0" vertpos="%d" vertsize="1000" '
                      'textheight="1000" baseline="850" spacing="300" horzpos="0" '
                      'horzsize="%d" flags="393216"/></hp:linesegarray>'
@@ -59,7 +60,7 @@ def footnote_run(text, no=1):
             + '</hp:subList></hp:footNote></hp:ctrl></hp:run>')
 
 
-def authors_runs(names, notes, cid):
+def authors_runs(names, notes, cid, marker=False):
     """저자 줄. notes[i] 가 있으면 i번째 저자 뒤에 각주를 단다."""
     runs, buf = [], ""
     for i, name in enumerate(names):
@@ -67,7 +68,7 @@ def authors_runs(names, notes, cid):
         if i < len(notes) and notes[i]:
             runs.append(run(buf, cid))
             buf = ""
-            runs.append(footnote_run(notes[i], i + 1))
+            runs.append(footnote_run(notes[i], i + 1, marker))
     if buf:
         runs.append(run(buf, cid))
     return "".join(runs)
@@ -254,7 +255,8 @@ def build(spec, out_path):
         if ptext(p).startswith("{{저자1}}"):
             cid = re.search(r'charPrIDRef="(\d+)"', p).group(1)
             tag = re.match(r"<hp:p [^>]*>", p).group()
-            p = tag + authors_runs(names_of(spec["authors_ko"]), spec.get("notes", []), cid) + "</hp:p>"
+            p = tag + authors_runs(names_of(spec["authors_ko"]), spec.get("notes", []), cid,
+                                          bool(spec.get("note_marker"))) + "</hp:p>"
         out.append(fill_front(p, spec))
     out.append(blank)
 
@@ -303,6 +305,11 @@ def build(spec, out_path):
         out.append(with_runs(ref, _ref_runs(r, cid, link_cid, uid_link)))
 
     new_sec = pre + "".join(out) + post
+    if spec.get("note_marker"):   # 각주 기호를 번호 대신 지정 문자(예: "*")로 (각주가 1개일 때)
+        new_sec = new_sec.replace(
+            'type="DIGIT" userChar="" prefixChar="" suffixChar=")" supscript="1"',
+            'type="USER_CHAR" userChar="%s" prefixChar="" suffixChar="" supscript="0"'
+            % esc(spec["note_marker"]), 1)
 
     def patch(name, d):
         if name == "Contents/section0.xml":
