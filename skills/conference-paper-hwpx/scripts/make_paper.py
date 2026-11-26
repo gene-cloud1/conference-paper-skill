@@ -42,52 +42,65 @@ def with_runs(p, runs_xml):
     return re.sub(r"<hp:run .*?</hp:run>", lambda m: runs_xml, p, count=1, flags=re.S)
 
 
+def split_top(sec):
+    """최상위 <hp:p> 의 (시작, 끝) 위치. 표/글상자 안의 중첩 단락은 건너뛴다."""
+    depth, spans, start = 0, [], 0
+    for m in re.finditer(r"<hp:p |</hp:p>", sec):
+        if m.group() == "<hp:p ":
+            if depth == 0:
+                start = m.start()
+            depth += 1
+        else:
+            depth -= 1
+            if depth == 0:
+                spans.append((start, m.end()))
+    return spans
+
+
+def fill_front(p0, spec):
+    """첫 단락(제목 표·저자 각주 표)의 자리표시자를 제자리에서 치환한다."""
+    notes = spec.get("notes", [])
+    kw = ", ".join(spec["keywords"])
+    table = [
+        ("{{소속1}}", None), ("{{소속2}}", None),
+        ("{{국문 제목}}", spec["title_ko"]), ("{{저자1}}", spec["authors_ko"]),
+        ("{{English Title}}", spec["title_en"]), ("{{Author1}}", spec["authors_en"]),
+        ("{{국문 요약}}", spec["abstract"]), ("{{Keyword1", kw),
+    ]
+
+    def rep(m):
+        t = m.group(1)
+        for key, val in table:
+            if t.lstrip().startswith(key) or (key.startswith("{{소속") and key in t):
+                if key == "{{소속1}}":
+                    val = ("  * " + notes[0]) if len(notes) > 0 else ""
+                elif key == "{{소속2}}":
+                    val = (" ** " + notes[1]) if len(notes) > 1 else ""
+                return "<hp:t>%s</hp:t>" % fh.escape_text(val)
+        return m.group()
+    return re.sub(r"<hp:t>(.*?)</hp:t>", rep, p0, flags=re.S)
+
+
 def build(spec, out_path):
     z = zipfile.ZipFile(TEMPLATE)
     sec = z.read("Contents/section0.xml").decode("utf8")
     header_name = "Contents/header.xml"
     header = z.read(header_name).decode("utf8")
-    start = sec.index("<hp:p ")
-    end = sec.rindex("</hp:p>") + 7
-    pre, post = sec[:start], sec[end:]
-    ps = PARA_RE.findall(sec)
+    spans = split_top(sec)
+    pre, post = sec[:spans[0][0]], sec[spans[-1][1]:]
+    ps = [sec[a:b] for a, b in spans]
 
     def find(prefix):
-        return next(p for p in ps if ptext(p).startswith(prefix))
+        return next(p for p in ps[1:] if ptext(p).startswith(prefix))
 
-    blank = ps[ps.index(find("Ⅰ.")) + 1]
+    blank = SEG_RE.sub("", ps[1])
     h1, h2 = find("Ⅰ."), find("1.1")
     body = find("{{본문 단락}}")
     ref = find("{{참고문헌")
     label_ref = ps[ps.index(ref) - 2]
     link_cid, header = _link_style(header, ref)
 
-    out = []
-    notes = spec.get("notes", [])
-    for i, p in enumerate(ps[:14]):
-        t = ptext(p)
-        if i == 0:
-            out.append(p)
-        elif t.startswith("  * "):
-            if len(notes) > 0:
-                out.append(with_text(p, "  * " + notes[0]))
-        elif t.startswith(" ** "):
-            if len(notes) > 1:
-                out.append(with_text(p, " ** " + notes[1]))
-        elif t == "{{국문 제목}}":
-            out.append(with_text(p, spec["title_ko"]))
-        elif t.startswith("{{저자1}}"):
-            out.append(with_text(p, spec["authors_ko"]))
-        elif t == "{{English Title}}":
-            out.append(with_text(p, spec["title_en"]))
-        elif t.startswith("{{Author1}}"):
-            out.append(with_text(p, spec["authors_en"]))
-        elif t == "{{국문 요약}}":
-            out.append(with_text(p, spec["abstract"]))
-        elif t.startswith("{{Keyword1"):
-            out.append(with_text(p, ", ".join(spec["keywords"])))
-        else:
-            out.append(SEG_RE.sub("", p))
+    out = [fill_front(ps[0], spec), blank]
 
     for n, s in enumerate(spec["sections"]):
         if n > 0:
