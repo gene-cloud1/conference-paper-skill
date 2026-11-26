@@ -57,12 +57,14 @@ def split_top(sec):
     return spans
 
 
-def fill_front(p0, spec):
-    """첫 단락(제목 표·저자 각주 표)의 자리표시자를 제자리에서 치환한다."""
+COLPR_RE = re.compile(r"<hp:ctrl><hp:colPr [^>]*colCount=\"2\"[^>]*/></hp:ctrl>")
+
+
+def fill_front(xml, spec):
+    """앞부분(제목·저자·요약·키워드·저자주석)의 자리표시자를 치환한다."""
     notes = spec.get("notes", [])
     kw = ", ".join(spec["keywords"])
     table = [
-        ("{{소속1}}", None), ("{{소속2}}", None),
         ("{{국문 제목}}", spec["title_ko"]), ("{{저자1}}", spec["authors_ko"]),
         ("{{English Title}}", spec["title_en"]), ("{{Author1}}", spec["authors_en"]),
         ("{{국문 요약}}", spec["abstract"]), ("{{Keyword1", kw),
@@ -70,15 +72,15 @@ def fill_front(p0, spec):
 
     def rep(m):
         t = m.group(1)
+        if "{{소속1}}" in t:
+            return "<hp:t>%s</hp:t>" % fh.escape_text("  * " + notes[0])
+        if "{{소속2}}" in t:
+            return "<hp:t>%s</hp:t>" % fh.escape_text(" ** " + notes[1])
         for key, val in table:
-            if t.lstrip().startswith(key) or (key.startswith("{{소속") and key in t):
-                if key == "{{소속1}}":
-                    val = ("  * " + notes[0]) if len(notes) > 0 else ""
-                elif key == "{{소속2}}":
-                    val = (" ** " + notes[1]) if len(notes) > 1 else ""
+            if t.startswith(key):
                 return "<hp:t>%s</hp:t>" % fh.escape_text(val)
         return m.group()
-    return re.sub(r"<hp:t>(.*?)</hp:t>", rep, p0, flags=re.S)
+    return re.sub(r"<hp:t>(.*?)</hp:t>", rep, xml, flags=re.S)
 
 
 def build(spec, out_path):
@@ -90,22 +92,36 @@ def build(spec, out_path):
     pre, post = sec[:spans[0][0]], sec[spans[-1][1]:]
     ps = [sec[a:b] for a, b in spans]
 
-    def find(prefix):
-        return next(p for p in ps[1:] if ptext(p).startswith(prefix))
+    first_h1 = next(i for i, p in enumerate(ps) if ptext(p).startswith("Ⅰ."))
+    front = ps[:first_h1]
+    notes = spec.get("notes", [])
+    # 저자 주석이 없으면 해당 단락을 뺀다 (최대 2개)
+    front = [p for p in front
+             if not ("{{소속1}}" in ptext(p) and len(notes) < 1)
+             and not ("{{소속2}}" in ptext(p) and len(notes) < 2)]
+    colpr = COLPR_RE.search(ps[first_h1]).group()
 
-    blank = SEG_RE.sub("", ps[1])
-    h1, h2 = find("Ⅰ."), find("1.1")
-    body = find("{{본문 단락}}")
-    ref = find("{{참고문헌")
+    def clean(p):
+        return COLPR_RE.sub("", p)
+
+    h1 = clean(ps[first_h1])
+    blank = SEG_RE.sub("", ps[first_h1 - 1])
+    h2 = clean(next(p for p in ps[first_h1:] if ptext(p).startswith("1.1")))
+    body = clean(next(p for p in ps[first_h1:] if ptext(p) == "{{본문 단락}}"))
+    ref = next(p for p in ps[first_h1:] if ptext(p).startswith("{{참고문헌"))
     label_ref = ps[ps.index(ref) - 2]
     link_cid, header = _link_style(header, ref)
 
-    out = [fill_front(ps[0], spec), blank]
+    out = [fill_front(p, spec) for p in front]
+    out.append(blank)
 
     for n, s in enumerate(spec["sections"]):
         if n > 0:
             out += [blank, blank]
-        out += [with_text(h1, "%s. %s" % (ROMAN[n], s["heading"])), blank]
+        head = with_text(h1, "%s. %s" % (ROMAN[n], s["heading"]))
+        if n == 0:   # 첫 장 제목에서 본문 2단 시작
+            head = head.replace("<hp:t>", colpr + "<hp:t>", 1)
+        out += [head, blank]
         for para in s.get("paragraphs", []):
             out.append(with_text(body, para))
         for m, sub in enumerate(s.get("subsections", []), 1):
