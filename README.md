@@ -5,7 +5,9 @@
 ## 규칙 요약
 - 국문/영문 제목·저자 → 요약 → 키워드 → 본문(Ⅰ, Ⅱ… / 1.1…) → 참고문헌 구조 유지
 - 출처 URL은 **클릭 가능한 하이퍼링크**로 자동 변환
-- **쪽번호**를 하단 가운데에 자동 삽입
+- 머리말(학회명, 좌측) + 바닥글 **쪽번호**(가운데)
+- 저자 소속·직위·이메일은 **첫 쪽 하단 각주**(구분선 포함)
+- 본문 중간에 **표·그림**(번호 캡션 자동) 삽입
 - 원본 템플릿은 수정하지 않고 새 파일로 저장
 
 ## 설치
@@ -22,7 +24,8 @@ skills/conference-paper-hwpx/
 ├── SKILL.md              # 작성·디자인 규칙과 절차
 ├── assets/template.hwpx  # 자리표시자가 들어 있는 양식
 ├── scripts/make_paper.py # JSON → HWPX 생성기
-└── examples/sample.json  # 입력 예시
+├── examples/sample.json  # 입력 예시 (표·그림 포함)
+└── examples/sample_figure.png
 ```
 
 ## 예시 결과물
